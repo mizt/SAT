@@ -212,9 +212,12 @@ int main(int argc, char *argv[]) {
 				for(int j=0; j<w; j++) {
 					unsigned int addr = (i*w+j);
 					float v = (depth[addr]&0xFF)-DEPTH_OFFSET;
-					v/=DEPTH_SCALE;
-					v*=0x100;
 					if(v<0) v = 0;
+					v/=(DEPTH_SCALE);
+					v*=5.0;
+					v-=4.0;
+					if(v<0) v = -v;
+					v*=0x100;
 					radius[addr] = v;
 				}
 			}
