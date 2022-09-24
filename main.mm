@@ -86,7 +86,9 @@ void sumY(unsigned int *sum, int w, int h, int thread=8) {
 	dispatch_group_wait(_group,DISPATCH_TIME_FOREVER);
 }
 
-static void blur(unsigned char *bgr, unsigned int *sum, int w, int h, int j, int i, int r) {
+static unsigned int blur(unsigned int *sum, int w, int h, int j, int i, int r) {
+	
+	unsigned int bgr = 0xFF000000;
 	
 	int top = i-(r+1);
 	if(top<0) top = 0;
@@ -108,12 +110,16 @@ static void blur(unsigned char *bgr, unsigned int *sum, int w, int h, int j, int
 	int BR = (bottom*w+right)*BGR;
 	
 	for(int n=0; n<BGR; n++) {
-		bgr[n] = CLIP255((sum[BR+n]-sum[BL+n]-sum[TR+n]+sum[TL+n])*area);
+		bgr |= ((unsigned int)CLIP255((sum[BR+n]-sum[BL+n]-sum[TR+n]+sum[TL+n])*area))<<(0x10-(n<<3));
 	}
+	
+	return bgr;
 }
 
-static void blur(unsigned char *bgr, unsigned int *sum, int w, int h, int j, int i, int r, int wet) {
+static unsigned int blur(unsigned int *sum, int w, int h, int j, int i, int r, int wet) {
 	
+	unsigned int bgr = 0xFF000000;
+
 	int dry = 0x100-wet; 
 	
 	int top[2] = {
@@ -168,8 +174,10 @@ static void blur(unsigned char *bgr, unsigned int *sum, int w, int h, int j, int
 		color+=CLIP255((sum[BR[1]+n]-sum[BL[1]+n]-sum[TR[1]+n]+sum[TL[1]+n])*area[1])*wet;
 		color>>=8;
 		
-		bgr[n] = color;
+		bgr |= color<<(0x10-(n<<3));
 	}
+		
+	return bgr;
 }
 
 void blur(unsigned int *dst, unsigned int *src, unsigned int *sum, unsigned int *radius, int w, int h, int begin, int end) {
@@ -188,12 +196,11 @@ void blur(unsigned int *dst, unsigned int *src, unsigned int *sum, unsigned int 
 				
 				int wet = radius[addr]&0xFF;
 				if(wet==0) {
-					blur(bgr,sum,w,h,j,i,(radius[addr])>>8);
+					dst[addr] = blur(sum,w,h,j,i,(radius[addr])>>8);
 				}
 				else {
-					blur(bgr,sum,w,h,j,i,(radius[addr])>>8,wet);
+					dst[addr] = blur(sum,w,h,j,i,(radius[addr])>>8,wet);
 				}
-				dst[addr] = 0xFF000000|bgr[0]<<16|bgr[1]<<8|bgr[2];
 			}
 		}
 	}
@@ -226,7 +233,7 @@ int main(int argc, char *argv[]) {
 
 	@autoreleasepool {
 		
-		const int THREAD = 8;
+		const int THREAD = 1;
 		const bool MIRROR = true;
 		
 		const int DEPTH_OFFSET = 4;
