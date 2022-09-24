@@ -8,7 +8,7 @@ namespace stb_image {
 	#import "./libs/stb_image.h"
 	#import "./libs/stb_image_write.h"
 }
-
+#define CLIP255(v) ((v>0xFF)?0xFF:v)
 #define CLAMP255(v) ((v>0xFF)?0xFF:(v<0)?0:v)
 #define BGR 3
 
@@ -27,25 +27,27 @@ void sumX(unsigned int *sum, unsigned int *src, int w, int h, int begin, int end
 	}
 }
 
-void sumX(unsigned int *sum, unsigned int *src, int w, int h) {
+void sumX(unsigned int *sum, unsigned int *src, int w, int h, int thread=8) {
 	
 	dispatch_group_t _group = dispatch_group_create();
 	dispatch_queue_t _queue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH,0);
 	
-	dispatch_group_async(_group,_queue,^{
-		sumX(sum,src,w,h,0,h>>1);
-	});
-	dispatch_group_async(_group,_queue,^{
-		sumX(sum,src,w,h,(h>>2)*1,(h>>2)*2);
-	});
-	dispatch_group_async(_group,_queue,^{
-		sumX(sum,src,w,h,(h>>2)*2,(h>>2)*3);
-	});
-	dispatch_group_async(_group,_queue,^{
-		sumX(sum,src,w,h,(h>>2)*3,h);
-	});
+	int col = h/thread;
 	
-	dispatch_group_wait(_group,DISPATCH_TIME_FOREVER);	
+	for(int k=0; k<thread; k++) {
+		if(k==thread-1) {
+			dispatch_group_async(_group,_queue,^{
+				sumX(sum,src,w,h,col*k,h);
+			});
+		}
+		else {
+			dispatch_group_async(_group,_queue,^{
+				sumX(sum,src,w,h,col*k,col*(k+1));
+			});
+		}
+	}
+	
+	dispatch_group_wait(_group,DISPATCH_TIME_FOREVER);
 }
 
 void sumY(unsigned int *sum, int w, int h, int begin, int end) {
@@ -61,23 +63,25 @@ void sumY(unsigned int *sum, int w, int h, int begin, int end) {
 	}
 }
 
-void sumY(unsigned int *sum, int w, int h) {
+void sumY(unsigned int *sum, int w, int h, int thread=8) {
 	
 	dispatch_group_t _group = dispatch_group_create();
 	dispatch_queue_t _queue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH,0);
 	
-	dispatch_group_async(_group,_queue,^{
-		sumY(sum,w,h,0,w>>2);
-	});
-	dispatch_group_async(_group,_queue,^{
-		sumY(sum,w,h,(w>>2)*1,(w>>2)*2);
-	});
-	dispatch_group_async(_group,_queue,^{
-		sumY(sum,w,h,(w>>2)*2,(w>>2)*3);
-	});
-	dispatch_group_async(_group,_queue,^{
-		sumY(sum,w,h,(w>>2)*3,w);
-	});
+	int row = w/thread;
+
+	for(int k=0; k<thread; k++) {
+		if(k==thread-1) {
+			dispatch_group_async(_group,_queue,^{
+				sumY(sum,w,h,row*k,w);
+			});
+		}
+		else {
+			dispatch_group_async(_group,_queue,^{
+				sumY(sum,w,h,row*k,row*(k+1));
+			});
+		}
+	}
 	
 	dispatch_group_wait(_group,DISPATCH_TIME_FOREVER);
 }
@@ -85,29 +89,27 @@ void sumY(unsigned int *sum, int w, int h) {
 static void blur(unsigned char *bgr, unsigned int *sum, int w, int h, int j, int i, int r) {
 	
 	int top = i-(r+1);
-	int bottom=i+r;
-	int left=j-(r+1);
-	int right=j+r;
-	
 	if(top<0) top = 0;
+	
+	int bottom=i+r;
 	if(bottom>h-1) bottom = h-1;
-	
-	int y = (bottom-top);
 
+	int left=j-(r+1);
 	if(left<0) left = 0;
-	if(right>w-1) right = w-1; 
-	int x = (right-left);
+
+	int right=j+r;
+	if(right>w-1) right = w-1; 	
 	
-	double area = 1.0/(double)(x*y);
+	double area = 1.0/(double)((right-left)*(bottom-top));
 	
 	unsigned int TL = (top*w+left)*BGR;
 	unsigned int TR = (top*w+right)*BGR;
 	unsigned int BL = (bottom*w+left)*BGR;
 	unsigned int BR = (bottom*w+right)*BGR;
 	
-	bgr[0] = CLAMP255((sum[BR]-sum[BL]-sum[TR]+sum[TL])*area);
-	bgr[1] = CLAMP255((sum[BR+1]-sum[BL+1]-sum[TR+1]+sum[TL+1])*area);
-	bgr[2] = CLAMP255((sum[BR+2]-sum[BL+2]-sum[TR+2]+sum[TL+2])*area);
+	bgr[0] = CLIP255((sum[BR]-sum[BL]-sum[TR]+sum[TL])*area);
+	bgr[1] = CLIP255((sum[BR+1]-sum[BL+1]-sum[TR+1]+sum[TL+1])*area);
+	bgr[2] = CLIP255((sum[BR+2]-sum[BL+2]-sum[TR+2]+sum[TL+2])*area);
 }
 
 void blur(unsigned int *dst, unsigned int *src, unsigned int *sum, unsigned int *radius, int w, int h, int begin, int end) {
@@ -119,7 +121,7 @@ void blur(unsigned int *dst, unsigned int *src, unsigned int *sum, unsigned int 
 			
 			unsigned int addr = i*w+j;
 			
-			unsigned int r = radius[addr];
+			unsigned int r = (radius[addr])>>8;
 			
 			if(r==0) {
 				dst[addr] = src[addr];
@@ -138,23 +140,25 @@ void blur(unsigned int *dst, unsigned int *src, unsigned int *sum, unsigned int 
 	}
 }
 
-void blur(unsigned int *dst, unsigned int *src, unsigned int *sum, unsigned int *radius, int w, int h) {
+void blur(unsigned int *dst, unsigned int *src, unsigned int *sum, unsigned int *radius, int w, int h, int thread=8) {
 	
 	dispatch_group_t _group = dispatch_group_create();
 	dispatch_queue_t _queue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH,0);
 
-	dispatch_group_async(_group,_queue,^{
-		blur(dst,src,sum,radius,w,h,0,h>>2);
-	});
-	dispatch_group_async(_group,_queue,^{
-		blur(dst,src,sum,radius,w,h,(h>>2)*1,(h>>2)*2);
-	});
-	dispatch_group_async(_group,_queue,^{
-		blur(dst,src,sum,radius,w,h,(h>>2)*2,(h>>2)*3);
-	});
-	dispatch_group_async(_group,_queue,^{
-		blur(dst,src,sum,radius,w,h,(h>>2)*3,h);
-	});
+	int col = h/thread;
+	
+	for(int k=0; k<thread; k++) {
+		if(k==thread-1) {
+			dispatch_group_async(_group,_queue,^{
+				blur(dst,src,sum,radius,w,h,col*k,h);
+			});
+		}
+		else {
+			dispatch_group_async(_group,_queue,^{
+				blur(dst,src,sum,radius,w,h,col*k,col*(k+1));
+			});
+		}
+	}
 	
 	dispatch_group_wait(_group,DISPATCH_TIME_FOREVER);
 }
@@ -162,6 +166,8 @@ void blur(unsigned int *dst, unsigned int *src, unsigned int *sum, unsigned int 
 int main(int argc, char *argv[]) {
 
 	@autoreleasepool {
+		
+		const int THREAD = 3;
 		
 		const int DEPTH_OFFSET = 4;
 		const float DEPTH_SCALE = 16.0;
@@ -183,10 +189,10 @@ int main(int argc, char *argv[]) {
 			for(int i=0; i<h; i++) {
 				for(int j=0; j<w; j++) {
 					unsigned int addr = (i*w+j);
-					short v = (depth[addr]&0xFF)-DEPTH_OFFSET;
+					int v = (depth[addr]&0xFF)-DEPTH_OFFSET;
 					v>>=2;
+					v*=0x100;
 					if(v<0) v = 0;
-					else if(v>0xFF) v = 0xFF;
 					radius[addr] = v;
 				}
 			}
@@ -195,13 +201,14 @@ int main(int argc, char *argv[]) {
 
 			double then = CFAbsoluteTimeGetCurrent();
 			
-			sumX(sum,src,w,h);
-			sumY(sum,w,h);
-			blur(buf,src,sum,radius,w,h);
 			
-			sumX(sum,buf,w,h);
-			sumY(sum,w,h);
-			blur(dst,buf,sum,radius,w,h);
+			sumX(sum,src,w,h,THREAD);
+			sumY(sum,w,h,THREAD);
+			blur(buf,src,sum,radius,w,h,THREAD);
+			
+			sumX(sum,buf,w,h,THREAD);
+			sumY(sum,w,h,THREAD);
+			blur(dst,buf,sum,radius,w,h,THREAD);
 
 NSLog(@"%f",CFAbsoluteTimeGetCurrent()-then);
 			
