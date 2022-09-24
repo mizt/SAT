@@ -102,13 +102,73 @@ static void blur(unsigned char *bgr, unsigned int *sum, int w, int h, int j, int
 	
 	double area = 1.0/(double)((right-left)*(bottom-top));
 	
-	unsigned int TL = (top*w+left)*BGR;
-	unsigned int TR = (top*w+right)*BGR;
-	unsigned int BL = (bottom*w+left)*BGR;
-	unsigned int BR = (bottom*w+right)*BGR;
+	int TL = (top*w+left)*BGR;
+	int TR = (top*w+right)*BGR;
+	int BL = (bottom*w+left)*BGR;
+	int BR = (bottom*w+right)*BGR;
 	
 	for(int n=0; n<BGR; n++) {
 		bgr[n] = CLIP255((sum[BR+n]-sum[BL+n]-sum[TR+n]+sum[TL+n])*area);
+	}
+}
+
+static void blur(unsigned char *bgr, unsigned int *sum, int w, int h, int j, int i, int r, int wet) {
+	
+	int dry = 0x100-wet; 
+	
+	int top[2] = {
+		i-(r+1),
+		i-((r+1)+1),
+	};
+	for(int n=0; n<2; n++) { if(top[n]<0) top[n] = 0; }
+		
+	int bottom[2] = {
+		i+r,
+		i+(r+1)
+	};
+	for(int n=0; n<2; n++) { if(bottom[n]>h-1) bottom[n] = h-1; }
+		
+	int left[2] = {
+		j-(r+1),
+		j-((r+1)+1)
+	};
+	for(int n=0; n<2; n++) { if(left[n]<0) left[n] = 0; }
+
+	int right[2] = {
+		j+r,
+		j+(r+1)
+	};
+	for(int n=0; n<2; n++) { if(right[n]>w-1) right[n] = w-1; }
+	
+	double area[2] = {
+		1.0/(double)((right[0]-left[0])*(bottom[0]-top[0])),
+		1.0/(double)((right[1]-left[1])*(bottom[1]-top[1]))
+	};
+	
+	int TL[2] = {
+		(top[0]*w+left[0])*BGR,
+		(top[1]*w+left[1])*BGR,
+	};
+	int TR[2] = { 
+		(top[0]*w+right[0])*BGR,
+		(top[1]*w+right[1])*BGR
+	};
+	int BL[2] = { 
+		(bottom[0]*w+left[0])*BGR,
+		(bottom[1]*w+left[1])*BGR
+	};
+	int BR[2] = { 
+		(bottom[0]*w+right[0])*BGR,
+		(bottom[1]*w+right[1])*BGR
+	};
+		
+	for(int n=0; n<BGR; n++) {
+		
+		unsigned int color = CLIP255((sum[BR[0]+n]-sum[BL[0]+n]-sum[TR[0]+n]+sum[TL[0]+n])*area[0])*dry;
+		color+=CLIP255((sum[BR[1]+n]-sum[BL[1]+n]-sum[TR[1]+n]+sum[TL[1]+n])*area[1])*wet;
+		color>>=8;
+		
+		bgr[n] = color;
 	}
 }
 
@@ -127,36 +187,13 @@ void blur(unsigned int *dst, unsigned int *src, unsigned int *sum, unsigned int 
 			else {
 				
 				int wet = radius[addr]&0xFF;
-				int dry = 0x100-wet;
-				
-				unsigned int r = (radius[addr])>>8;
-
 				if(wet==0) {
-					blur(bgr,sum,w,h,j,i,r);
-					
-					unsigned char blue = bgr[0]; 
-					unsigned char green = bgr[1]; 
-					unsigned char red = bgr[2]; 
-					
-					dst[i*w+j] = 0xFF000000|blue<<16|green<<8|red;
+					blur(bgr,sum,w,h,j,i,(radius[addr])>>8);
 				}
 				else {
-					
-					blur(bgr,sum,w,h,j,i,r);
-					
-					unsigned char blue = bgr[0]; 
-					unsigned char green = bgr[1]; 
-					unsigned char red = bgr[2]; 
-					
-					blur(bgr,sum,w,h,j,i,r+1);
-					
-					blue = (blue*dry+bgr[0]*wet)>>8;
-					green = (green*dry+bgr[1]*wet)>>8;
-					red = (red*dry+bgr[2]*wet)>>8;
-					
-					dst[i*w+j] = 0xFF000000|blue<<16|green<<8|red;
+					blur(bgr,sum,w,h,j,i,(radius[addr])>>8,wet);
 				}
-				
+				dst[addr] = 0xFF000000|bgr[0]<<16|bgr[1]<<8|bgr[2];
 			}
 		}
 	}
@@ -190,6 +227,7 @@ int main(int argc, char *argv[]) {
 	@autoreleasepool {
 		
 		const int THREAD = 8;
+		const bool MIRROR = true;
 		
 		const int DEPTH_OFFSET = 4;
 		const float DEPTH_SCALE = 16.0;
@@ -216,7 +254,8 @@ int main(int argc, char *argv[]) {
 					v/=(DEPTH_SCALE);
 					v*=5.0;
 					v-=4.0;
-					if(v<0) v = -v;
+					if(MIRROR) { if(v<0) v = -v;}
+					else { if(v<0) v = 0; }
 					v*=0x100;
 					radius[addr] = v;
 				}
