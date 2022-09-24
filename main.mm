@@ -86,7 +86,7 @@ void sumY(unsigned int *sum, int w, int h, int thread=8) {
 	dispatch_group_wait(_group,DISPATCH_TIME_FOREVER);
 }
 
-static unsigned int blur(unsigned int *sum, int w, int h, int j, int i, int r) {
+unsigned int blur(unsigned int *sum, int w, int h, int j, int i, int r) {
 	
 	unsigned int bgr = 0xFF000000;
 	
@@ -116,7 +116,7 @@ static unsigned int blur(unsigned int *sum, int w, int h, int j, int i, int r) {
 	return bgr;
 }
 
-static unsigned int blur(unsigned int *sum, int w, int h, int j, int i, int r, int wet) {
+unsigned int blur(unsigned int *sum, int w, int h, int j, int i, int r, int wet) {
 	
 	unsigned int bgr = 0xFF000000;
 
