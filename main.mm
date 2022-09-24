@@ -190,7 +190,7 @@ int main(int argc, char *argv[]) {
 				for(int j=0; j<w; j++) {
 					unsigned int addr = (i*w+j);
 					int v = (depth[addr]&0xFF)-DEPTH_OFFSET;
-					v>>=2;
+					v/=DEPTH_SCALE;
 					v*=0x100;
 					if(v<0) v = 0;
 					radius[addr] = v;
@@ -199,8 +199,7 @@ int main(int argc, char *argv[]) {
 			
 			int bgr[BGR] = {0,0,0};
 
-			double then = CFAbsoluteTimeGetCurrent();
-			
+double then = CFAbsoluteTimeGetCurrent();
 			
 			sumX(sum,src,w,h,THREAD);
 			sumY(sum,w,h,THREAD);
