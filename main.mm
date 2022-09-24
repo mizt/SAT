@@ -84,9 +84,9 @@ void sumY(unsigned int *sum, int w, int h) {
 
 static void blur(unsigned char *bgr, unsigned int *sum, int w, int h, int j, int i, int r) {
 	
-	int top = i-r;
+	int top = i-(r+1);
 	int bottom=i+r;
-	int left=j-r;
+	int left=j-(r+1);
 	int right=j+r;
 	
 	if(top<0) top = 0;
