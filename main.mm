@@ -107,9 +107,9 @@ static void blur(unsigned char *bgr, unsigned int *sum, int w, int h, int j, int
 	unsigned int BL = (bottom*w+left)*BGR;
 	unsigned int BR = (bottom*w+right)*BGR;
 	
-	bgr[0] = CLIP255((sum[BR]-sum[BL]-sum[TR]+sum[TL])*area);
-	bgr[1] = CLIP255((sum[BR+1]-sum[BL+1]-sum[TR+1]+sum[TL+1])*area);
-	bgr[2] = CLIP255((sum[BR+2]-sum[BL+2]-sum[TR+2]+sum[TL+2])*area);
+	for(int n=0; n<BGR; n++) {
+		bgr[n] = CLIP255((sum[BR+n]-sum[BL+n]-sum[TR+n]+sum[TL+n])*area);
+	}
 }
 
 void blur(unsigned int *dst, unsigned int *src, unsigned int *sum, unsigned int *radius, int w, int h, int begin, int end) {
@@ -121,20 +121,42 @@ void blur(unsigned int *dst, unsigned int *src, unsigned int *sum, unsigned int 
 			
 			unsigned int addr = i*w+j;
 			
-			unsigned int r = (radius[addr])>>8;
-			
-			if(r==0) {
+			if(radius[addr]==0) {
 				dst[addr] = src[addr];
 			}
 			else {
 				
-				blur(bgr,sum,w,h,j,i,r);
+				int wet = radius[addr]&0xFF;
+				int dry = 0x100-wet;
 				
-				unsigned char blue = bgr[0]; 
-				unsigned char green = bgr[1]; 
-				unsigned char red = bgr[2]; 
+				unsigned int r = (radius[addr])>>8;
+
+				if(wet==0) {
+					blur(bgr,sum,w,h,j,i,r);
+					
+					unsigned char blue = bgr[0]; 
+					unsigned char green = bgr[1]; 
+					unsigned char red = bgr[2]; 
+					
+					dst[i*w+j] = 0xFF000000|blue<<16|green<<8|red;
+				}
+				else {
+					
+					blur(bgr,sum,w,h,j,i,r);
+					
+					unsigned char blue = bgr[0]; 
+					unsigned char green = bgr[1]; 
+					unsigned char red = bgr[2]; 
+					
+					blur(bgr,sum,w,h,j,i,r+1);
+					
+					blue = (blue*dry+bgr[0]*wet)>>8;
+					green = (green*dry+bgr[1]*wet)>>8;
+					red = (red*dry+bgr[2]*wet)>>8;
+					
+					dst[i*w+j] = 0xFF000000|blue<<16|green<<8|red;
+				}
 				
-				dst[i*w+j] = 0xFF000000|blue<<16|green<<8|red;
 			}
 		}
 	}
@@ -167,7 +189,7 @@ int main(int argc, char *argv[]) {
 
 	@autoreleasepool {
 		
-		const int THREAD = 3;
+		const int THREAD = 8;
 		
 		const int DEPTH_OFFSET = 4;
 		const float DEPTH_SCALE = 16.0;
@@ -189,7 +211,7 @@ int main(int argc, char *argv[]) {
 			for(int i=0; i<h; i++) {
 				for(int j=0; j<w; j++) {
 					unsigned int addr = (i*w+j);
-					int v = (depth[addr]&0xFF)-DEPTH_OFFSET;
+					float v = (depth[addr]&0xFF)-DEPTH_OFFSET;
 					v/=DEPTH_SCALE;
 					v*=0x100;
 					if(v<0) v = 0;
