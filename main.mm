@@ -318,8 +318,7 @@ class SAT {
 						if(v<0) v = 0;
 						v/=(DEPTH_SCALE);
 						if(v<0) v = (MIRROR)?-v:0;
-						v*=0x100;
-						*pRadius++ = v;
+						*pRadius++=v*0x100;
 					}
 				}
 			}
@@ -379,7 +378,6 @@ class SAT {
 int main(int argc, char *argv[]) {
 
 	@autoreleasepool {
-		
 	
 		int info[3];	
 		unsigned int *src = (unsigned int *)stb_image::stbi_load("./texture.jpg",info,info+1,info+2,4);
