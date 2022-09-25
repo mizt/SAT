@@ -13,7 +13,7 @@ namespace stb_image {
 #define BGR 3
 #define SHIFT(v) (0x10-(v<<3))
 
-const int THREAD = 4;
+const int THREAD = 8;
 const bool MIRROR = true;
 
 const int DEPTH_OFFSET = 4;
@@ -26,20 +26,24 @@ class SAT {
 		int _width;
 		int _height;
 		
-		int row;
-		
 		dispatch_group_t _group = dispatch_group_create();
 		dispatch_queue_t _queue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH,0);
 		
-		unsigned int *buf = nullptr;
-		unsigned int *dst = nullptr;
+		unsigned int *_buf = nullptr;
+		unsigned int *_dst = nullptr;
 		
-		unsigned int *area = nullptr;
-		unsigned int *sum = nullptr;
+		unsigned int *_area = nullptr;
+		unsigned int *_sum = nullptr;
 
-		unsigned int *radius = nullptr;
+		unsigned int *_radius = nullptr;
 
-		void sumX(unsigned int *sum, unsigned int *area, unsigned int *src, int w, int h, int begin, int end) {
+		void sumX(unsigned int *src, int begin, int end) {
+			
+			unsigned int *sum = this->_sum;
+			unsigned int *area = this->_area;
+			
+			int w = this->_width;
+			int h = this->_height;
 			int row = w+1;
 			unsigned int bgr[BGR] = {0,0,0};
 			for(int i=begin; i<end; i++) {
@@ -62,24 +66,28 @@ class SAT {
 			}
 		}
 		
-		void sumX(unsigned int *sum, unsigned int *area, unsigned int *src, int w, int h, int thread=8) {
-			int col = h/thread;	
+		void sumX(unsigned int *src,int thread=8) {
+			int col = this->_height/thread;	
 			for(int k=0; k<thread; k++) {
 				if(k==thread-1) {
 					dispatch_group_async(_group,_queue,^{
-						sumX(sum,area,src,w,h,col*k,h);
+						sumX(src,col*k,this->_height);
 					});
 				}
 				else {
 					dispatch_group_async(_group,_queue,^{
-						sumX(sum,area,src,w,h,col*k,col*(k+1));
+						sumX(src,col*k,col*(k+1));
 					});
 				}
 			}
 			dispatch_group_wait(_group,DISPATCH_TIME_FOREVER);
 		}
 		
-		void sumY(unsigned int *sum, unsigned int *area, int w, int h, int begin, int end) {
+		void sumY(int begin, int end) {
+			unsigned int *sum = this->_sum;
+			unsigned int *area = this->_area;
+			int w = this->_width;
+			int h = this->_height;
 			int row = w+1;
 			unsigned int bgr[BGR] = {0,0,0};
 			for(int j=begin; j<end; j++) {
@@ -94,28 +102,33 @@ class SAT {
 			}
 		}
 		
-		void sumY(unsigned int *sum, unsigned int *area, int w, int h, int thread=8) {
-			int row = w/thread;
+		void sumY(int thread=8) {
+			int row = this->_width/thread;
 			for(int k=0; k<thread; k++) {
 				if(k==thread-1) {
 					dispatch_group_async(_group,_queue,^{
-						sumY(sum,area,w,h,row*k,w);
+						sumY(row*k,this->_width);
 					});
 				}
 				else {
 					dispatch_group_async(_group,_queue,^{
-						sumY(sum,area,w,h,row*k,row*(k+1));
+						sumY(row*k,row*(k+1));
 					});
 				}
 			}
 			dispatch_group_wait(_group,DISPATCH_TIME_FOREVER);
 		}
 		
-		unsigned int calc(unsigned int *sum, unsigned int *area, unsigned char alpha, int w, int h, int j, int i, int r) {
+		unsigned int calc(unsigned char alpha, int j, int i, int r) {
+			
+			unsigned int *pSum = this->_sum;
+			unsigned int *pArea = this->_area;
+						
+			int w = this->_width;
+			int h = this->_height;
+			int row = w+1;
 			
 			unsigned int bgr = alpha<<24;
-			
-			int row = w+1;
 			
 			int top = i-r;
 			if(top<0) top = 0;
@@ -134,7 +147,7 @@ class SAT {
 			int BL = (bottom*row+left);
 			int BR = (bottom*row+right);
 			
-			double weight = 1.0/(area[BR]-area[BL]-area[TR]+area[TL]);
+			double weight = 1.0/(pArea[BR]-pArea[BL]-pArea[TR]+pArea[TL]);
 			
 			TL*=BGR;
 			TR*=BGR;
@@ -142,13 +155,19 @@ class SAT {
 			BR*=BGR;
 			
 			for(int n=0; n<BGR; n++) {
-				bgr|=(((unsigned int)CLIP255((sum[BR+n]-sum[BL+n]-sum[TR+n]+sum[TL+n])*weight))<<SHIFT(n));
+				bgr|=(((unsigned int)CLIP255((pSum[BR+n]-pSum[BL+n]-pSum[TR+n]+pSum[TL+n])*weight))<<SHIFT(n));
 			}
 			
 			return bgr;
 		}
 	
-		unsigned int calc(unsigned int *sum, unsigned int *area, unsigned char alpha, int w, int h, int j, int i, int r, int wet) {
+		unsigned int calc(unsigned char alpha, int j, int i, int r, int wet) {
+		
+			unsigned int *pSum = this->_sum;
+			unsigned int *pArea = this->_area;
+			
+			int w = this->width();
+			int h = this->height();
 		
 			int row = w+1;
 			
@@ -198,8 +217,8 @@ class SAT {
 				};
 				
 				double weight[2] = {
-					1.0/(double)(area[BR[0]]-area[BL[0]]-area[TR[0]]+area[TL[0]]),
-					1.0/(double)(area[BR[1]]-area[BL[1]]-area[TR[1]]+area[TL[1]])
+					1.0/(double)(pArea[BR[0]]-pArea[BL[0]]-pArea[TR[0]]+pArea[TL[0]]),
+					1.0/(double)(pArea[BR[1]]-pArea[BL[1]]-pArea[TR[1]]+pArea[TL[1]])
 				};
 				
 				for(int n=0; n<2; n++) {
@@ -210,8 +229,8 @@ class SAT {
 				}
 				
 				for(int n=0; n<BGR; n++) {
-					unsigned int color = CLIP255((sum[BR[0]+n]-sum[BL[0]+n]-sum[TR[0]+n]+sum[TL[0]+n])*weight[0])*dry;
-					color+=CLIP255((sum[BR[1]+n]-sum[BL[1]+n]-sum[TR[1]+n]+sum[TL[1]+n])*weight[1])*wet;
+					unsigned int color = CLIP255((pSum[BR[0]+n]-pSum[BL[0]+n]-pSum[TR[0]+n]+pSum[TL[0]+n])*weight[0])*dry;
+					color+=CLIP255((pSum[BR[1]+n]-pSum[BL[1]+n]-pSum[TR[1]+n]+pSum[TL[1]+n])*weight[1])*wet;
 					color>>=8;
 					bgr|=(color<<SHIFT(n));
 				}
@@ -219,10 +238,11 @@ class SAT {
 				return bgr;
 			}
 					
-			void blur(unsigned int *dst, unsigned int *area, unsigned int *src, unsigned int *sum, unsigned int *radius, int w, int h, int begin, int end) {
-				
+			void blur(unsigned int *dst, unsigned int *src, int begin, int end) {
+				int w = this->width();
+				int h = this->height();
 				for(int i=begin; i<end; i++) {
-					unsigned int *pRadius = radius+i*w;
+					unsigned int *pRadius = this->_radius+i*w;
 					unsigned int *pSrc = src+i*w;
 					unsigned int *pDst = dst+i*w;
 					for(int j=0; j<w; j++) {
@@ -239,10 +259,10 @@ class SAT {
 							else {
 								int wet = r&0xFF;
 								if(wet==0) {
-									*pDst++ = calc(sum,area,alpha,w,h,j,i,r>>8);
+									*pDst++ = calc(alpha,j,i,r>>8);
 								}
 								else {
-									*pDst++ = calc(sum,area,alpha,w,h,j,i,r>>8,wet);
+									*pDst++ = calc(alpha,j,i,r>>8,wet);
 								}
 							}
 						}
@@ -251,97 +271,104 @@ class SAT {
 				}
 			}
 					
-			void blur(unsigned int *dst, unsigned int *area, unsigned int *src, unsigned int *sum, unsigned int *radius, int w, int h, int thread=8) {
-				int col = h/thread;
+			void blur(unsigned int *dst, unsigned int *src, int thread=8) {
+				int col = this->_height/thread;
 				for(int k=0; k<thread; k++) {
 					if(k==thread-1) {
 						dispatch_group_async(_group,_queue,^{
-							blur(dst,area,src,sum,radius,w,h,col*k,h);
+							blur(dst,src,col*k,this->_height);
 						});
 					}
 					else {
 						dispatch_group_async(_group,_queue,^{
-							blur(dst,area,src,sum,radius,w,h,col*k,col*(k+1));
+							blur(dst,src,col*k,col*(k+1));
 						});
 					}
 				}
 				dispatch_group_wait(_group,DISPATCH_TIME_FOREVER);
 			}
 					
-			void erase(unsigned int *area, unsigned int *sum, int w, int h) {
+			void erase() {
+				
+				unsigned int *pArea = this->_area;
+				unsigned int *pSum = this->_sum;
+				
+				int w = this->width();
+				int h = this->height();
+				
 				int row = w+1;
-				for(int k=0; k<(w+1); k++) area[k] = 0;
-				for(int k=0; k<(h+1); k++) area[k*row] = 0;
-				for(int k=0; k<(w+1)*BGR; k++) sum[k] = 0;
-				for(int k=0; k<(h+1); k++) sum[(k*row)*BGR+0] = sum[(k*row)*BGR+1] = sum[(k*row)*BGR+2] = 0;
+				int col = h+1;
+
+				for(int k=0; k<row; k++) pArea[k] = 0;
+				for(int k=0; k<col; k++) pArea[k*row] = 0;
+				for(int k=0; k<row*BGR; k++) pSum[k] = 0;
+				for(int k=0; k<col; k++) pSum[(k*row)*BGR+0] = pSum[(k*row)*BGR+1] = pSum[(k*row)*BGR+2] = 0;
+			}
+				
+			void radius(unsigned char *pDepth) {
+				
+				unsigned int *pRadius = this->_radius;
+				
+				int w = this->width();
+				int h = this->height();
+				
+				for(int i=0; i<h; i++) {
+					for(int j=0; j<w; j++) {
+						float v = (*pDepth++)-DEPTH_OFFSET;
+						if(v<0) v = 0;
+						v/=(DEPTH_SCALE);
+						if(v<0) v = (MIRROR)?-v:0;
+						v*=0x100;
+						*pRadius++ = v;
+					}
+				}
 			}
 				
 		public:
 			
 			SAT(int w, int h) {
+				
 				this->_width = w;
-				this->row = w+1;
 				this->_height = h; 
 				
-				this->buf = new unsigned int[w*h];
-				this->dst = new unsigned int[w*h];
+				this->_buf = new unsigned int[w*h];
+				this->_dst = new unsigned int[w*h];
 				
-				this->area = new unsigned int[(w+1)*(h+1)];
-				this->sum = new unsigned int[(w+1)*(h+1)*BGR];
+				this->_area = new unsigned int[(w+1)*(h+1)];
+				this->_sum = new unsigned int[(w+1)*(h+1)*BGR];
 				
-				this->radius = new unsigned int[w*h];
-				for(int k=0; k<w*h; k++) this->radius[k] = 3*0x100;
+				this->_radius = new unsigned int[w*h];
+				for(int k=0; k<w*h; k++) this->_radius[k] = 0*0x100;
 			}
 			
 			~SAT() {
-				delete[] this->radius;
-				delete[] this->sum;
-				delete[] this->dst;
-				delete[] this->buf;
+				delete[] this->_radius;
+				delete[] this->_sum;
+				delete[] this->_dst;
+				delete[] this->_buf;
 			}
 			
+			int width() { return this->_width; };
+			int height() { return this->_height; };
+				
 			unsigned int *bytes() {
-				return this->dst;
+				return this->_dst;
 			}
 				
 			void exec(unsigned int *src) {
-				this->erase(area,sum,this->_width,this->_height);
-				this->sumX(sum,area,src,this->_width,this->_height,THREAD);
-				this->sumY(sum,area,this->_width,this->_height,THREAD);
-				this->blur(buf,area,src,sum,radius,this->_width,this->_height,THREAD);
-				this->erase(area,sum,this->_width,this->_height);
-				this->sumX(sum,area,buf,this->_width,this->_height,THREAD);
-				this->sumY(sum,area,this->_width,this->_height,THREAD);
-				this->blur(dst,area,buf,sum,radius,this->_width,this->_height,THREAD);
-			}
+				this->erase();
+				this->sumX(src,THREAD);
+				this->sumY(THREAD);
+				this->blur(this->_buf,src,THREAD);
 				
-			void exec(unsigned int *src, unsigned int *depth) {
-				for(int i=0; i<this->_height; i++) {
-					for(int j=0; j<this->_width; j++) {
-						unsigned int addr = (i*this->_width+j);
-						float v = (depth[addr]&0xFF)-DEPTH_OFFSET;
-						if(v<0) v = 0;
-						v/=(DEPTH_SCALE);
-						if(v<0) v = (MIRROR)?-v:0;
-						v*=0x100;
-						radius[addr] = v;
-					}
-				}
-				this->exec(src);
+				this->erase();
+				this->sumX(this->_buf,THREAD);
+				this->sumY(THREAD);
+				this->blur(this->_dst,this->_buf,THREAD);
 			}
-	
+			
 			void exec(unsigned int *src, unsigned char *depth) {
-				for(int i=0; i<this->_height; i++) {
-					for(int j=0; j<this->_width; j++) {
-						unsigned int addr = (i*this->_width+j);
-						float v = (depth[addr])-DEPTH_OFFSET;
-						if(v<0) v = 0;
-						v/=(DEPTH_SCALE);
-						if(v<0) v = (MIRROR)?-v:0;
-						v*=0x100;
-						radius[addr] = v;
-					}
-				}
+				this->radius(depth);
 				this->exec(src);
 			}
 };
@@ -359,13 +386,16 @@ int main(int argc, char *argv[]) {
 		
 		if(src) {
 			
-
-			
 			const int w = info[0];
 			const int h = info[1];
 			
-			unsigned int *depth = (unsigned int *)stb_image::stbi_load("./depth.png",info,info+1,info+2,4);
-		
+			unsigned int *_depth = (unsigned int *)stb_image::stbi_load("./depth.png",info,info+1,info+2,4);
+			unsigned char *depth = new unsigned char[w*h];
+			for(int i=0; i<h; i++) {
+				for(int j=0; j<w; j++) {
+					depth[i*w+j] = _depth[i*w+j]&0xFF;
+				}
+			}
 			
 double then = CFAbsoluteTimeGetCurrent();
 
@@ -379,6 +409,8 @@ NSLog(@"%f",CFAbsoluteTimeGetCurrent()-then);
 			delete sat;
 			delete[] src;
 			delete[] depth;
+			delete[] _depth;
+
 		}
 	}
 }
