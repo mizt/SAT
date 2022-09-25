@@ -16,12 +16,12 @@ int main(int argc, char *argv[]) {
 		const int W = 16;
 		const int H = 8;
 		
-		int bx = random()%W;
-		int ex = random()%W;
+		int bx = 3;//random()%W;
+		int ex = bx+2;//random()%W;
 		if(bx>ex) XorSwap(&bx,&ex);
 		
-		int by = random()%H;
-		int ey = random()%H;
+		int by = 3;//random()%H;
+		int ey = by+2;//random()%H;
 		if(by>ey) XorSwap(&by,&ey);
 
 		printf("x: %d-%d\n",bx,ex);
@@ -30,7 +30,7 @@ int main(int argc, char *argv[]) {
 		unsigned int *plane = new unsigned int[W*H];
 		
 		for(int k=0; k<W*H; k++) {
-			plane[k] = random()&1;
+			plane[k] = 1;//random()&1;
 		}
 		
 		for(int i=0; i<H; i++) {
@@ -47,30 +47,30 @@ int main(int argc, char *argv[]) {
 		}
 		printf("= %d\n",num);
 
-		unsigned int *sum = new unsigned int[(W+1)*(H+1)];
+		unsigned int *area = new unsigned int[(W+1)*(H+1)];
 		for(int k=0; k<(W+1)*(H+1); k++) {
-			sum[k] = 0;
+			area[k] = 0;
 		}
 		
 		for(int i=1; i<H+1; i++) {
 			int v = 0;
 			for(int j=1; j<W+1; j++) {
-				sum[i*(W+1)+j] = (v+=plane[(i-1)*W+(j-1)]);
+				area[i*(W+1)+j] = (v+=plane[(i-1)*W+(j-1)]);
 			}
 		}
 	
 		for(int j=0; j<W+1; j++) {
 			int v = 0;
 			for(int i=0; i<H+1; i++) {
-				v+=sum[i*(W+1)+j];
-				sum[i*(W+1)+j] = v;
+				v+=area[i*(W+1)+j];
+				area[i*(W+1)+j] = v;
 			}
 		}
 		
 		printf("\n");
 		for(int i=0; i<H+1; i++) {
 			for(int j=0; j<W+1; j++) {
-				printf("%03d,",sum[i*(W+1)+j]);
+				printf("%03d,",area[i*(W+1)+j]);
 			}
 			printf("\n");
 		}
@@ -82,9 +82,9 @@ int main(int argc, char *argv[]) {
 		int TR = by*(W+1)+(ex+1);
 		int BL = (ey+1)*(W+1)+bx;
 		int BR = (ey+1)*(W+1)+(ex+1);
-		printf("= %d\n",(sum[BR]-sum[BL]-sum[TR]+sum[TL]));
+		printf("= %d\n",(area[BR]-area[BL]-area[TR]+area[TL]));
 		
 		delete[] plane;
-		delete[] sum;
+		delete[] area;
 	}
 }
