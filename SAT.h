@@ -278,19 +278,18 @@ class SAT {
 				unsigned int *pArea = this->_area;
 				unsigned int *pSum = this->_sum;
 				for(int k=0; k<row; k++) pArea[k] = 0;
-				for(int k=0; k<col; k++) pArea[k*row] = 0;
 				for(int k=0; k<row*3; k++) pSum[k] = 0;
-				for(int k=0; k<col; k++) pSum[(k*row)*3+0] = pSum[(k*row)*3+1] = pSum[(k*row)*3+2] = 0;
+				for(int k=0; k<col; k++) {
+					pArea[k*row] = 0;
+					pSum[(k*row)*3+0] = pSum[(k*row)*3+1] = pSum[(k*row)*3+2] = 0;
+				}
 			}
 				
 			void radius(unsigned char *depth, int begin, int end) {
-				
 				int w = this->width();
 				int h = this->height();
-				
 				double s = this->_scale;
 				double f = (this->_forcus==0)?0:(this->_forcus*s);
-				
 				for(int i=begin; i<end; i++) {
 					unsigned int *pRadius = this->_radius+i*w;
 					unsigned char *pDepth = depth+i*w;
@@ -328,24 +327,18 @@ class SAT {
 			static constexpr double DEPTH_SCALE = 16.0;
 			
 			SAT(int w, int h) {
-				
 				this->_width = w;
-				this->_height = h; 
-				
+				this->_height = h;
 				unsigned int row = w+1;
 				unsigned int col = h+1;
-				
 				this->_buf = new unsigned int[w*h];
 				this->_dst = new unsigned int[w*h];
-				
 				this->_area = new unsigned int[row*col];
 				this->_sum = new unsigned int[row*col*3];
-				
 				this->_radius = new unsigned int[w*h];
 				for(int k=0; k<w*h; k++) this->_radius[k] = 0*0x100;
-				
 				this->_scale = 1.0/DEPTH_SCALE;
-
+				this->erase();
 			}
 			
 			~SAT() {
@@ -368,12 +361,9 @@ class SAT {
 			void scale(double v) { this->_scale = v; }
 				
 			void blur(unsigned int *src) {
-				this->erase();
 				this->sumX(src,this->_thread);
 				this->sumY(this->_thread);
 				this->blur(this->_buf,src,this->_thread);
-				
-				this->erase();
 				this->sumX(this->_buf,this->_thread);
 				this->sumY(this->_thread);
 				this->blur(this->_dst,this->_buf,this->_thread);
