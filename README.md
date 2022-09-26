@@ -6,7 +6,7 @@
 ##### depth
 <img src="./images/depth.png">
 
-##### blur
+##### blur (results)
 <img src="./images/blur.png">
 
 #### Reference
