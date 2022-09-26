@@ -324,8 +324,8 @@ class SAT {
 				
 		public:
 				
-			const int DEPTH_OFFSET = 4;
-			const float DEPTH_SCALE = 16.0;
+			static constexpr int DEPTH_OFFSET = 4;
+			static constexpr double DEPTH_SCALE = 16.0;
 			
 			SAT(int w, int h) {
 				

@@ -15,12 +15,11 @@ int main(int argc, char *argv[]) {
 
 	@autoreleasepool {
 		
-		const char *SRC = "./texture.jpg";
-		const char *MAP = "./depth.png";
-		const char *DST = "./blur.png";
+		const char *SRC = "./images/src.jpg";
+		const char *MAP = "./images/depth.png";
+		const char *DST = "./dst.png";
 		
-		
-		int info[3];	
+		int info[3];
 		unsigned int *src = (unsigned int *)stb_image::stbi_load(SRC,info,info+1,info+2,4);
 		
 		if(src) {
@@ -35,15 +34,16 @@ int main(int argc, char *argv[]) {
 					depth[i*w+j] = _depth[i*w+j]&0xFF;
 				}
 			}
-			 
-double then = CFAbsoluteTimeGetCurrent();
-
+			
+			double then = CFAbsoluteTimeGetCurrent();
+			
 			SAT *sat = new SAT(w,h);
-			sat->scale(0.175);
-			sat->forcus(-12);
+			sat->mirror(false);
+			sat->scale((1.0/SAT::DEPTH_SCALE)*0.5);
+			sat->forcus(-SAT::DEPTH_SCALE*5.0);
 			sat->blur(src,depth);
-
-NSLog(@"%f",CFAbsoluteTimeGetCurrent()-then);
+			
+			NSLog(@"%f",CFAbsoluteTimeGetCurrent()-then);
 			
 			stb_image::stbi_write_png(DST,w,h,4,(void const*)sat->bytes(),w<<2);
 			
@@ -51,7 +51,7 @@ NSLog(@"%f",CFAbsoluteTimeGetCurrent()-then);
 			delete[] src;
 			delete[] depth;
 			delete[] _depth;
-
+			
 		}
 	}
 }
