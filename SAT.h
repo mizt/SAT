@@ -134,12 +134,12 @@ class SAT {
 			return bgr;
 		}
 	
-		unsigned int calc(unsigned char alpha, int j, int i, int r, unsigned int wet) {
+		unsigned int calc(unsigned char alpha, int j, int i, int r, unsigned char wet) {
 		
 			int w = this->_width;
 			int h = this->_height;
 								
-			unsigned int dry = 0x100-wet; 
+			unsigned char dry = 0x100-wet; 
 			
 			int top[2] = {
 				i-r,
@@ -217,7 +217,7 @@ class SAT {
 							*pDst++ = pixel;
 						}
 						else {
-							unsigned int wet = r&0xFF;
+							unsigned char wet = r&0xFF;
 							if(wet==0) {
 								*pDst++ = calc(alpha,j,i,r>>8);
 							}
