@@ -118,17 +118,18 @@ class SAT {
 			int right=(j+r)+1;
 			if(right>w) right = w;
 			
+			unsigned int bgr = alpha<<24;
 			unsigned int row = w+1;
+							
 			unsigned int *pBR = this->_sum+((bottom*row+right)<<2);
 			unsigned int *pBL = this->_sum+((bottom*row+left)<<2);
 			unsigned int *pTR = this->_sum+((top*row+right)<<2);
 			unsigned int *pTL = this->_sum+((top*row+left)<<2);
 			
-			unsigned int bgr = alpha<<24;
-			double weight = 1.0/((*pBR++)-(*pBL++)-(*pTR++)+(*pTL++));
-			bgr|=((CLIP255(((*pBR++)-(*pBL++)-(*pTR++)+(*pTL++))*weight))<<16);
-			bgr|=((CLIP255(((*pBR++)-(*pBL++)-(*pTR++)+(*pTL++))*weight))<<8);
-			bgr|=((CLIP255(((*pBR++)-(*pBL++)-(*pTR++)+(*pTL++))*weight)));
+			double weight = ((*pBR++)-(*pBL++)-(*pTR++)+(*pTL++));
+			bgr|=((CLIP255(((*pBR++)-(*pBL++)-(*pTR++)+(*pTL++))/weight))<<16);
+			bgr|=((CLIP255(((*pBR++)-(*pBL++)-(*pTR++)+(*pTL++))/weight))<<8);
+			bgr|=((CLIP255(((*pBR++)-(*pBL++)-(*pTR++)+(*pTL++))/weight)));
 
 			return bgr;
 		}
@@ -183,15 +184,14 @@ class SAT {
 			};
 						
 			double weight[2] = {
-				1.0/(double)((*pBR[0]++)-(*pBL[0]++)-(*pTR[0]++)+(*pTL[0]++)),
-				1.0/(double)((*pBR[1]++)-(*pBL[1]++)-(*pTR[1]++)+(*pTL[1]++)),
+				(double)((*pBR[0]++)-(*pBL[0]++)-(*pTR[0]++)+(*pTL[0]++)),
+				(double)((*pBR[1]++)-(*pBL[1]++)-(*pTR[1]++)+(*pTL[1]++)),
 			};
 			
 			unsigned int bgr = alpha<<24;
-			
 			for(int k=0; k<3; k++) {
-				unsigned int color = CLIP255(((*pBR[0]++)-(*pBL[0]++)-(*pTR[0]++)+(*pTL[0]++))*weight[0])*dry;
-				color+=CLIP255(((*pBR[1]++)-(*pBL[1]++)-(*pTR[1]++)+(*pTL[1]++))*weight[1])*wet;
+				unsigned int color = CLIP255(((*pBR[0]++)-(*pBL[0]++)-(*pTR[0]++)+(*pTL[0]++))/weight[0])*dry;
+				color+=CLIP255(((*pBR[1]++)-(*pBL[1]++)-(*pTR[1]++)+(*pTL[1]++))/weight[1])*wet;
 				color>>=8;
 				bgr|=(color<<(0x10-(k<<3)));
 			}
