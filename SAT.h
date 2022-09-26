@@ -34,18 +34,16 @@ class SAT {
 				unsigned int *pSum = sum+(((i+1)*row+(1))<<2);
 				for(int j=0; j<w; j++) {
 					unsigned int abrg = *pSrc++;
-					if((abrg>>24)==0) {
-						*pSum++=a;
-						*pSum++=b;
-						*pSum++=g;
-						*pSum++=r;
+					if(abrg>>24) {
+						a++;
+						b+=(abrg>>16&0xFF);
+						g+=(abrg>>8&0xFF);
+						r+=(abrg&0xFF);
 					}
-					else {
-						*pSum++=(++a);
-						*pSum++=(b+=(abrg>>16&0xFF));
-						*pSum++=(g+=(abrg>>8&0xFF));
-						*pSum++=(r+=(abrg&0xFF));
-					}
+					*pSum++=a;
+					*pSum++=b;
+					*pSum++=g;
+					*pSum++=r;
 				}
 			}
 		}
@@ -138,8 +136,8 @@ class SAT {
 	
 		unsigned int calc(unsigned char alpha, int j, int i, int r, unsigned int wet) {
 		
-			int w = this->width();
-			int h = this->height();
+			int w = this->_width;
+			int h = this->_height;
 								
 			unsigned int dry = 0x100-wet; 
 			
@@ -203,8 +201,8 @@ class SAT {
 		}
 					
 		void blur(unsigned int *dst, unsigned int *src, int begin, int end) {
-			int w = this->width();
-			int h = this->height();
+			int w = this->_width;
+			int h = this->_height;
 			for(int i=begin; i<end; i++) {
 				unsigned int *pRadius = this->_radius+i*w;
 				unsigned int *pSrc = src+i*w;
@@ -253,8 +251,8 @@ class SAT {
 		}
 				
 		void erase() {
-			int w = this->width();
-			int h = this->height();
+			int w = this->_width;
+			int h = this->_height;
 			int row = w+1;
 			int col = h+1;
 			unsigned int *pSum = this->_sum;
@@ -265,8 +263,8 @@ class SAT {
 		}
 			
 		void radius(unsigned char *depth, int begin, int end) {
-			int w = this->width();
-			int h = this->height();
+			int w = this->_width;
+			int h = this->_height;
 			double s = this->_scale;
 			double f = (this->_forcus==0)?0:(this->_forcus*s);
 			for(int i=begin; i<end; i++) {
