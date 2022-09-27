@@ -34,16 +34,16 @@ int main(int argc, char *argv[]) {
 					depth[i*w+j] = _depth[i*w+j]&0xFF;
 				}
 			}
-			
-			double then = CFAbsoluteTimeGetCurrent();
-			
+						
 			SAT *sat = new SAT(w,h);
+			
 			sat->mirror(false);
 			sat->scale((1.0/SAT::DEPTH_SCALE)*0.5);
 			sat->forcus(-SAT::DEPTH_SCALE*5.0);
-			sat->blur(src,depth);
 			
-			NSLog(@"%f",CFAbsoluteTimeGetCurrent()-then);
+double then = CFAbsoluteTimeGetCurrent();
+				sat->blur(src,depth);
+NSLog(@"%f",CFAbsoluteTimeGetCurrent()-then);
 			
 			stb_image::stbi_write_png(DST,w,h,4,(void const*)sat->bytes(),w<<2);
 			
